@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, forwardRef, ForwardedRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import { useInView } from 'react-intersection-observer';
 import Header from './components/Header.tsx';
 import Hero from './components/Hero.tsx';
@@ -24,10 +23,13 @@ const sections: Section[] = [
 
 function App() {
   const [currentSection, setCurrentSection] = useState(0);
-  const sectionRefs = useRef<HTMLElement[]>([]);
+  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
 
   const scrollToSection = (index: number) => {
-    sectionRefs.current[index]?.scrollIntoView({ behavior: 'smooth' });
+    const element = sectionRefs.current[index];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
@@ -44,12 +46,16 @@ function App() {
 
   const progress = (currentSection / (sections.length - 1)) * 100;
 
+  const setSectionRef = (index: number) => (el: HTMLElement | null) => {
+    sectionRefs.current[index] = el;
+  };
+
   return (
     <div className="min-h-screen animated-gradient">
       <Header sections={sections} currentSection={currentSection} scrollToSection={scrollToSection} />
       <div className="fixed top-0 left-0 w-full h-1 bg-blue-500" style={{ width: `${progress}%`, transition: 'width 0.3s' }} />
       {sections.map((section, index) => (
-        <SectionObserver key={section.id} index={index} setCurrentSection={setCurrentSection} ref={(el) => (sectionRefs.current[index] = el!)}>
+        <SectionObserver key={section.id} index={index} setCurrentSection={setCurrentSection} ref={setSectionRef(index)}>
           {index === 0 && <Hero id={section.id} scrollToNext={() => scrollToSection(1)} />}
           {index === 1 && <WhatIsVibeCoding id={section.id} />}
           {index === 2 && <Comparison id={section.id} />}
@@ -68,12 +74,29 @@ interface SectionObserverProps {
   setCurrentSection: (index: number) => void;
 }
 
-const SectionObserver = forwardRef<HTMLElement, SectionObserverProps>(({ children, index, setCurrentSection }, ref: ForwardedRef<HTMLElement>) => {
+const SectionObserver = forwardRef<HTMLElement, SectionObserverProps>(({ children, index, setCurrentSection }, ref) => {
   const [refInView, inView] = useInView({ threshold: 0.5 });
+  
   useEffect(() => {
     if (inView) setCurrentSection(index);
   }, [inView, index, setCurrentSection]);
-  return <section ref={(el) => { refInView(el); if (ref) { if (typeof ref === 'function') ref(el); else ref.current = el; } }}>{children}</section>;
+  
+  return (
+    <section 
+      ref={(el) => {
+        refInView(el);
+        if (typeof ref === 'function') {
+          ref(el);
+        } else if (ref) {
+          ref.current = el;
+        }
+      }}
+    >
+      {children}
+    </section>
+  );
 });
+
+SectionObserver.displayName = 'SectionObserver';
 
 export default App; 
